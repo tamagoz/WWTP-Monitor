@@ -1,0 +1,6 @@
+{
+  "name": "WWTP Monitor",
+  "description": "ระบบตรวจวัด ควบคุม และวิเคราะห์คุณภาพน้ำเสียโรงพยาบาล พร้อมตู้ควบคุม IoT, Web App และ AI อัจฉริยะ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

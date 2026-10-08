@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hospital WWTP SCADA - รพ.ชุมแพ ขอนแก่น</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="logo-badge">WWTP</div>
+      <div>
+        <h1 class="nav-title">ระบบตรวจวัด ควบคุม และบำบัดน้ำเสียอัจฉริยะ</h1>
+        <p class="nav-subtitle">โรงพยาบาลชุมแพ จังหวัดขอนแก่น | โครงการ 2568-16-Chumpea-1-WaterPump</p>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <span class="status-indicator online" id="connectionStatus">● ออนไลน์ (ออฟไลน์แคชพร้อม)</span>
+      <span class="system-clock" id="liveClock">00:00:00</span>
+      <button class="btn btn-primary" onclick="exportReportPDF()">📄 พิมพ์ / ส่งออกรายงาน PDF</button>
+    </div>
+  </header>
+
+  <nav class="subnav">
+    <button class="tab-btn active" onclick="switchTab('dashboard')">📊 แดชบอร์ดสด (Live SCADA)</button>
+    <button class="tab-btn" onclick="switchTab('process')">🔄 ผังกระบวนการ & ตู้ MDB</button>
+    <button class="tab-btn" onclick="switchTab('analytics')">📈 สถิติ & บันทึกรายวัน (+8,400L)</button>
+    <button class="tab-btn" onclick="switchTab('manual')">📘 คู่มือตู้ควบคุม (OP Manual Rev2)</button>
+  </nav>
+
+  <main class="main-content">
+    <section id="tab-dashboard" class="tab-pane active">
+      <div class="qa-banner" id="qaBanner">
+        <div class="qa-status-pill pass" id="qaPill">สถานะ QA: PASS ผ่านเกณฑ์</div>
+        <div class="qa-details" id="qaDetails">
+          พารามิเตอร์น้ำทิ้งทั้งหมด (pH, DO, ORP, ความขุ่น) อยู่ในเกณฑ์มาตรฐานควบคุมสาธารณสุข
+        </div>
+        <div class="qa-cycle-stat">
+          รอบปั๊มวันนี้: <strong id="cycleCounter">14</strong> ครั้ง | ปริมาตรวันนี้: <strong id="dailyVolume">117,600</strong> ลิตร
+        </div>
+      </div>
+
+      <div class="scada-grid">
+        <div class="card tank-card">
+          <div class="card-header">
+            <h3>ถังพักน้ำเสีย (Wet Well 3m x 4m x 7m = 84 m³)</h3>
+            <span class="badge" id="tankLevelPctBadge">ระดับ 88.5%</span>
+          </div>
+          <div class="tank-visual-container">
+            <div class="tank-wrapper">
+              <div class="tank-fluid" id="tankFluid" style="height: 85%;">
+                <div class="wave"></div>
+              </div>
+              <div class="tank-line line-90"><span>90% (6.30m) จุดสตาร์ทปั๊ม ▲</span></div>
+              <div class="tank-line line-80"><span>80% (5.60m) จุดหยุดปั๊ม ▼</span></div>
+              <div class="tank-line line-0"><span>0.00m ก้นถัง</span></div>
+            </div>
+            <div class="tank-stats">
+              <div class="stat-group">
+                <span class="stat-label">ระดับน้ำปัจจุบัน</span>
+                <span class="stat-value" id="waterLevelVal">6.15 <small>m</small></span>
+              </div>
+              <div class="stat-group">
+                <span class="stat-label">ปริมาตรต่อน้ำ 1 รอบ</span>
+                <span class="stat-value highlight">+8,400 <small>ลิตร (8.4 m³)</small></span>
+              </div>
+              <div class="stat-group">
+                <span class="stat-label">อัตราการสูบ (Flow)</span>
+                <span class="stat-value" id="flowRateVal">42.0 <small>m³/ชม.</small></span>
+              </div>
+              <div class="stat-group">
+                <span class="stat-label">กำลังไฟฟ้าตู้ MDB</span>
+                <span class="stat-value" id="powerVal">7.2 <small>kW</small></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card telemetry-card">
+          <div class="card-header">
+            <h3>พารามิเตอร์คุณภาพน้ำ (Modbus RS-485 Sensors)</h3>
+            <span class="badge badge-online">High-Speed ms Polling</span>
+          </div>
+          <div class="sensor-grid">
+            <div class="sensor-box" id="box-ph">
+              <span class="sensor-title">ความเป็นกรด-ด่าง (pH)</span>
+              <div class="sensor-val" id="val-ph">7.35</div>
+              <span class="sensor-std">มาตรฐาน: 5.50 - 9.00</span>
+              <div class="sensor-bar"><div class="fill" id="bar-ph" style="width: 55%;"></div></div>
+            </div>
+            <div class="sensor-box" id="box-do">
+              <span class="sensor-title">ออกซิเจนละลาย (DO)</span>
+              <div class="sensor-val" id="val-do">3.85 <small>mg/L</small></div>
+              <span class="sensor-std">มาตรฐาน: ≥ 2.00 mg/L</span>
+              <div class="sensor-bar"><div class="fill" id="bar-do" style="width: 65%;"></div></div>
+            </div>
+            <div class="sensor-box" id="box-orp">
+              <span class="sensor-title">ศักย์ฆ่าเชื้อ (ORP)</span>
+              <div class="sensor-val" id="val-orp">685 <small>mV</small></div>
+              <span class="sensor-std">มาตรฐาน: ≥ 650 mV (คลอรีน)</span>
+              <div class="sensor-bar"><div class="fill" id="bar-orp" style="width: 78%;"></div></div>
+            </div>
+            <div class="sensor-box" id="box-turb">
+              <span class="sensor-title">ความขุ่น (Turbidity)</span>
+              <div class="sensor-val" id="val-turb">14.2 <small>NTU</small></div>
+              <span class="sensor-std">มาตรฐาน: ≤ 20.0 NTU</span>
+              <div class="sensor-bar"><div class="fill" id="bar-turb" style="width: 35%;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>สถานะเครื่องจักรอุปกรณ์ (MDB Control Status)</h3>
+            <span class="badge badge-primary">Mode: AUTO</span>
+          </div>
+          <div class="equip-list">
+            <div class="equip-row">
+              <div class="equip-meta">
+                <span class="equip-tag">P1 (KM1)</span>
+                <div>
+                  <strong>ปั๊มสูบน้ำเสียเข้าบ่อปรับสภาพ</strong>
+                  <div class="subtext">1.5 kW | 42 m³/ชม. | ลูกลอยตัดรอบ 90%->80%</div>
+                </div>
+              </div>
+              <span class="status-badge running" id="pumpP1Status">กำลังทำงาน (RUN)</span>
+            </div>
+            <div class="equip-row">
+              <div class="equip-meta">
+                <span class="equip-tag">P2 (KM2)</span>
+                <div>
+                  <strong>เครื่องเติมอากาศ Aerator บ่อเติมอากาศ</strong>
+                  <div class="subtext">5.5 kW | Timer รอบเดิน 30 น. / พัก 15 น.</div>
+                </div>
+              </div>
+              <span class="status-badge running" id="pumpP2Status">กำลังทำงาน (RUN)</span>
+            </div>
+            <div class="equip-row">
+              <div class="equip-meta">
+                <span class="equip-tag">P3 (KM3)</span>
+                <div>
+                  <strong>ปั๊มสูบกากตะกอนย้อนกลับ (Sludge Return)</strong>
+                  <div class="subtext">0.75 kW | ควบคุมรอบตะกอนชีวภาพ</div>
+                </div>
+              </div>
+              <span class="status-badge stopped" id="pumpP3Status">หยุด (STANDBY)</span>
+            </div>
+            <div class="equip-row">
+              <div class="equip-meta">
+                <span class="equip-tag">P4 (KM4)</span>
+                <div>
+                  <strong>ปั๊มสูบระบายน้ำทิ้งสาธารณะ (Discharge)</strong>
+                  <div class="subtext">1.5 kW | น้ำใสผ่านการฆ่าเชื้อคลอรีน</div>
+                </div>
+              </div>
+              <span class="status-badge running" id="pumpP4Status">กำลังทำงาน (RUN)</span>
+            </div>
+            <div class="equip-row">
+              <div class="equip-meta">
+                <span class="equip-tag">P5 (KM5)</span>
+                <div>
+                  <strong>ปั๊มจ่ายสารละลายคลอรีน (Chlorine Dosing)</strong>
+                  <div class="subtext">ปรับตามค่า ORP อัตโนมัติ (เป้าหมาย ≥650 mV)</div>
+                </div>
+              </div>
+              <span class="status-badge running" id="pumpP5Status">กำลังทำงาน (RUN)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>กราฟวิเคราะห์แนวโน้มเรียลไทม์ (Real-time Trends)</h3>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="dot ph"></span> pH</span>
+              <span class="legend-item"><span class="dot do"></span> DO</span>
+              <span class="legend-item"><span class="dot lvl"></span> ระดับน้ำ (m)</span>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="trendCanvas" width="550" height="240"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-process" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <h3>แบบแปลนผังกระบวนการ (Process Flow) และตู้ควบคุมอัจฉริยะ</h3>
+          <span class="badge">รพ.ชุมแพ ขอนแก่น</span>
+        </div>
+        <div class="flow-steps-grid">
+          <div class="flow-step">
+            <div class="step-num">1</div>
+            <h4>บ่อดักขยะ (Screen Chamber)</h4>
+            <p>ดักเศษขยะและสิ่งปฏิกูลหยาบ ก่อนน้ำเสียไหลเข้าบ่อสูบ</p>
+          </div>
+          <div class="flow-step highlight">
+            <div class="step-num">2</div>
+            <h4>บ่อสูบน้ำเสีย (Sump Pit)</h4>
+            <p>ถังพัก 3x4x7m (84 m³) ลูกลอย FS-H/FS-L ตัดรอบสูบ 8,400 ลิตร/รอบ</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">3</div>
+            <h4>ถังปรับสภาพ (Equalization)</h4>
+            <p>ปรับสมดุลการไหลและค่า pH ให้คงที่ก่อนเข้าสู่บ่อชีวภาพ</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">4</div>
+            <h4>ถังเติมอากาศ (Aeration Tank)</h4>
+            <p>Aerator 5.5 kW เติมออกซิเจนให้จุลินทรีย์ (DO ≥ 2.0 mg/L)</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">5</div>
+            <h4>ถังตกตะกอน (Sedimentation)</h4>
+            <p>แยกน้ำใสออกจากกากตะกอน สูบ Sludge Return กลับบ่อ</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">6</div>
+            <h4>ถังสัมผัสคลอรีน (Disinfection)</h4>
+            <p>ฆ่าเชื้อโรคด้วยคลอรีน (ORP ≥ 650 mV) ก่อนระบายน้ำทิ้ง</p>
+          </div>
+        </div>
+        <div class="circuit-summary">
+          <h4>วงจรไฟฟ้าตู้ MDB และเบรกเกอร์</h4>
+          <div class="breaker-grid">
+            <div class="breaker-item"><strong>Q1:</strong> Main MCCB 100A (3P)</div>
+            <div class="breaker-item"><strong>Q2:</strong> ปั๊มน้ำเสีย P1 (16A 3P)</div>
+            <div class="breaker-item"><strong>Q3:</strong> เครื่องเติมอากาศ P2 (20A 3P)</div>
+            <div class="breaker-item"><strong>Q4:</strong> ตะกอนย้อนกลับ P3 (10A 3P)</div>
+            <div class="breaker-item"><strong>Q5:</strong> ปั๊มน้ำทิ้ง P4 (16A 3P)</div>
+            <div class="breaker-item"><strong>Q6:</strong> ปั๊มคลอรีน P5 (6A 1P)</div>
+            <div class="breaker-item"><strong>Q7:</strong> วงจรควบคุม 24VDC (10A)</div>
+            <div class="breaker-item highlight"><strong>E-Stop:</strong> ปุ่มหยุดฉุกเฉิน Safety Bus</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-analytics" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <h3>สรุปสถิติประจำวันและรายเดือน (QA Compliance Report)</h3>
+          <div>
+            <button class="btn btn-secondary" onclick="downloadCSV()">📥 ดาวน์โหลดไฟล์ Excel (CSV)</button>
+            <button class="btn btn-primary" onclick="exportReportPDF()">📄 พิมพ์รายงาน PDF</button>
+          </div>
+        </div>
+        <div class="stats-overview-grid">
+          <div class="metric-card">
+            <span class="m-label">รอบปั๊มสูบวันนี้ (ครั้ง)</span>
+            <span class="m-val" id="repDailyCycles">14</span>
+            <span class="m-sub">คำนวณจาก Falling Edge 1->0</span>
+          </div>
+          <div class="metric-card">
+            <span class="m-label">ปริมาณน้ำบำบัดวันนี้ (ลิตร)</span>
+            <span class="m-val" id="repDailyLiters">117,600</span>
+            <span class="m-sub">14 รอบ x 8,400 ลิตร</span>
+          </div>
+          <div class="metric-card">
+            <span class="m-label">ปริมาณน้ำสะสมเดือนนี้ (m³)</span>
+            <span class="m-val" id="repMonthlyM3">2,856.0</span>
+            <span class="m-sub">คิดเป็น 2,856,000 ลิตร</span>
+          </div>
+          <div class="metric-card">
+            <span class="m-label">อัตราผ่านเกณฑ์มาตรฐาน</span>
+            <span class="m-val text-success">99.4%</span>
+            <span class="m-sub">เกณฑ์ pH, DO, ORP สาธารณสุข</span>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>เวลา</th>
+                <th>ระดับน้ำ (m)</th>
+                <th>pH</th>
+                <th>DO (mg/L)</th>
+                <th>ORP (mV)</th>
+                <th>ความขุ่น (NTU)</th>
+                <th>สถานะปั๊ม</th>
+                <th>ปริมาตรรอบนี้</th>
+                <th>สถานะ QA</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-manual" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <h3>คู่มือการใช้งานและบำรุงรักษาตู้ควบคุม (OP Manual Rev.2)</h3>
+          <div class="search-box">
+            <input type="text" id="manualSearchInput" placeholder="🔍 ค้นหาคีย์เวิร์ดในคู่มือ (เช่น ลูกลอย, pH, Overload)..." onkeyup="filterManual()">
+          </div>
+        </div>
+        <div class="manual-content" id="manualContainer">
+          <div class="manual-section" data-keywords="สเปก บอร์ด esp32 raspberry pi สเปค">
+            <h4>1. ข้อมูลจำเพาะของบอร์ดควบคุม (Hardware Specifications)</h4>
+            <p><strong>ESP32-S3:</strong> ความเร็ว 240 MHz Dual-core, SRAM 512KB, Flash 8MB ทำหน้าที่อ่านเซนเซอร์ Modbus RS-485 และประมวลผลลอจิกตัดรอบปั๊มน้ำ 90% -> 80% (+8,400 ลิตร)</p>
+            <p><strong>Raspberry Pi 3 Model B+:</strong> 64-bit 1.4 GHz, RAM 1GB ทำหน้าที่เป็น MQTT Broker, Data Logging และจัดทำรายงานรายวัน/รายเดือน</p>
+          </div>
+          <div class="manual-section" data-keywords="ลูกลอย 90% 80% ปริมาตร 8400 ลิตร ถังพักน้ำ">
+            <h4>2. มิติถังพักและการคำนวณปริมาตรไฮดรอลิกส์</h4>
+            <p>ถังพักน้ำเสียขนาด กว้าง 3.0m x ยาว 4.0m x ลึก 7.0m ปริมาตรรวม 84.0 m³</p>
+            <p>ลูกลอย FS-H สั่งเริ่มสูบที่ 90% (6.30m) และ FS-L สั่งหยุดสูบที่ 80% (5.60m) ความสูงลดลง 0.70m</p>
+            <p><strong>ปริมาตรน้ำที่สูบออกต่อ 1 รอบ = 3 x 4 x 0.70 = 8.40 m³ = 8,400 ลิตร</strong></p>
+          </div>
+          <div class="manual-section" data-keywords="ปัญหา แก้ไข trouble overload ปั๊มไม่ตัด e-stop rs485">
+            <h4>3. การแก้ไขปัญหาเบื้องต้นหน้างาน (Troubleshooting Matrix)</h4>
+            <ul>
+              <li><strong>ปั๊มไม่ยอมตัดเมื่อน้ำลด:</strong> ให้หมุนสวิตช์หน้าตู้ไปที่ OFF ทันที ตรวจสอบลูกลอย FS-L ทำความสะอาดคราบไขมัน</li>
+              <li><strong>ไฟ Overload Trip ติดค้าง:</strong> สับเบรกเกอร์ลง ตรวจสอบเศษขยะอุดตันใบพัดปั๊ม และกดปุ่ม Reset สีฟ้าบน Thermal Overload</li>
+              <li><strong>ค่า pH หรือ DO ไม่ขึ้น:</strong> ตรวจสอบสาย RS-485 ขั้ว A-B และล้างคราบเมือกแบคทีเรียบนหัวโพรบ</li>
+            </ul>
+          </div>
+          <div class="manual-section" data-keywords="faq คำถาม บ่อย เน็ตหลุด loto ปลอดภัย">
+            <h4>4. คำถามที่พบบ่อย (FAQ)</h4>
+            <p><strong>ถาม: หากเน็ตหลุด ตู้ควบคุมยังทำงานอัตโนมัติได้หรือไม่?</strong><br>ตอบ: ทำงานได้ตามปกติ 100% ลอจิกทำงานบนบอร์ด ESP32 โดยตรง ไม่ได้พึ่งพาคลาวด์</p>
+            <p><strong>ถาม: ความปลอดภัยด้านไฟฟ้าและเคมีมีข้อควรระวังใดบ้าง?</strong><br>ตอบ: ต้องปฏิบัติตามมาตรฐาน LOTO ตัดไฟทุกครั้งก่อนเปิดตู้ และห้ามลงบ่อพักน้ำเสียโดยไม่มีอุปกรณ์ตรวจวัดก๊าซและหน้ากาก SCBA</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
